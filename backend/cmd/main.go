@@ -1,6 +1,9 @@
 package main
 
 import (
+	"chat-core/internal/api"
+	"chat-core/internal/repository"
+	"chat-core/internal/service"
 	"context"
 	"fmt"
 	"log"
@@ -12,7 +15,6 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/redis/go-redis/v9"
 )
-
 
 func main() {
 	godotenv.Load()
@@ -33,12 +35,27 @@ func main() {
 	rdb := redis.NewClient(&redis.Options{
 		Addr: os.Getenv("REDIS_ADDR"),
 	})
-	if err := rdb.Ping(ctx).Err(); err != nil{
+	if err := rdb.Ping(ctx).Err(); err != nil {
 		log.Fatal("Unable to connect to Redis: ", err)
 	}
 	fmt.Printf("Successfully connected to Redis\n")
 
+	pgRepo := repository.NewPostgresRepo(db)
+	rdRepo := repository.NewRedisRepo(rdb)
+
+	aiServiceURL := "http://localhost:8000/generate"
+
+	chatService := service.NewChatService(pgRepo, rdRepo, aiServiceURL)
+
+	chatHandler := api.NewChatHandler(chatService)
+
 	r := gin.Default()
+
+	api := r.Group("/api")
+	{
+		api.POST("/chat/start", chatHandler.StartChat)
+		api.POST("/chat/message", chatHandler.SendMessage)
+	}
 
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
@@ -48,5 +65,7 @@ func main() {
 	})
 
 	fmt.Println("Server Chat-Core starting on port 8080")
-	r.Run(":8080")
+	if err := r.Run(":8080"); err != nil {
+		log.Fatalf("Ошибка сервера: %v", err)
+	}
 }
