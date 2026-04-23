@@ -12,7 +12,7 @@ student_persona = """
 """
 
 model = genai.GenerativeModel(
-    'gemini-2.0-flash',
+    'gemini-2.5-flash',
     system_instruction=student_persona
     )
 
